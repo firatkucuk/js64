@@ -1,1 +1,3 @@
-console.log('hello js64');
+import { Emulator } from "./emulator";
+
+const emulator = new Emulator();
