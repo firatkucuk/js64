@@ -1,6 +1,7 @@
 'use strict';
 
 import {Ram} from './ram';
+import {InstructionDecoder} from './instruction-decoder';
 
 export class Cpu {
 
@@ -14,10 +15,12 @@ export class Cpu {
 
     // Other
     private ram: Ram;
+    private instructionDecoder: InstructionDecoder;
 
     public constructor(ram: Ram) {
 
-        this.ram = ram;
+        this.ram                = ram;
+        this.instructionDecoder = new InstructionDecoder(this, ram);
     }
 
     public reset(): void {
