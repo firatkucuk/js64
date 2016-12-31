@@ -1,6 +1,6 @@
-import {Ram} from './ram';
+import {AddressBus} from './adress-bus';
 
-enum Flag {
+export enum CpuFlag {
     Carry            = 0,
     Zero             = 1,
     InterruptDisable = 2,
@@ -10,36 +10,44 @@ enum Flag {
     Sign             = 7
 }
 
+/**
+ * Emulates MOS 6502 compatible CPU
+ */
 export class Cpu {
 
+    // Fields ----------------------------------------------------------------------------------------------------------
+
     // 8 Bit Registers
-    private accumulator: number;
-    private registerX: number;
-    private registerY: number;
-    private stackPointer: number;
-    private status: number;
+    private _accumulator: number;
+    private _registerX: number;
+    private _registerY: number;
+    private _stackPointer: number;
+    private _status: number;
 
     // 16 Bit Registers (8+8)
-    private programCounter: number;
+    private _programCounter: number;
 
     // Other
-    private ram: Ram;
+    private _addressBus: AddressBus;
+    private _halt: boolean;
 
-    public constructor(ram: Ram) {
+    // Constructors ----------------------------------------------------------------------------------------------------
 
-        this.ram = ram;
+    public constructor(addressBus: AddressBus) {
+
+        this._addressBus = addressBus;
     }
 
-    public decode(count: number): void {
+    // Public Methods --------------------------------------------------------------------------------------------------
 
-        const start  = this.programCounter;
-        const memory = this.ram.memory;
+    public decode(): void {
 
-        while (this.programCounter < start + count) {
+        while (!this._halt) {
 
-            let instruction = memory[this.programCounter++];
+            let instruction = this._addressBus.getByte(this._programCounter++);
 
             if (instruction === 0x00) { // BRK
+                this._halt = true;
             } else if (instruction === 0x01) { // ORA - (Indirect,X)
             } else if (instruction === 0x05) { // ORA - Zero Page
             } else if (instruction === 0x06) { // ASL - Zero Page
@@ -53,7 +61,7 @@ export class Cpu {
             } else if (instruction === 0x15) { // ORA - Zero Page,X
             } else if (instruction === 0x16) { // ASL - Zero Page,X
             } else if (instruction === 0x18) { // CLC
-                this.status &= 0b11111110;
+                this._status &= 0b11111110;
             } else if (instruction === 0x19) { // ORA - Absolute,Y
             } else if (instruction === 0x1D) { // ORA - Absolute,X
             } else if (instruction === 0x1E) { // ASL - Absolute,X
@@ -73,7 +81,7 @@ export class Cpu {
             } else if (instruction === 0x35) { // AND - Zero Page,X
             } else if (instruction === 0x36) { // ROL - Zero Page,X
             } else if (instruction === 0x38) { // SEC
-                this.status |= 0b00000001;
+                this._status |= 0b00000001;
             } else if (instruction === 0x39) { // AND - Absolute,Y
             } else if (instruction === 0x3D) { // AND - Absolute,X
             } else if (instruction === 0x3E) { // ROL - Absolute,X
@@ -92,7 +100,7 @@ export class Cpu {
             } else if (instruction === 0x55) { // EOR - Zero Page,X
             } else if (instruction === 0x56) { // LSR - Zero Page,X
             } else if (instruction === 0x58) { // CLI
-                this.status &= 0b11111011;
+                this._status &= 0b11111011;
             } else if (instruction === 0x59) { // EOR - Absolute,Y
             } else if (instruction === 0x50) { // EOR - Absolute,X
             } else if (instruction === 0x5E) { // LSR - Absolute,X
@@ -102,20 +110,26 @@ export class Cpu {
             } else if (instruction === 0x66) { // ROR - Zero Page
             } else if (instruction === 0x68) { // PLA
             } else if (instruction === 0x69) { // ADC - Immediate
-                const result = this.accumulator + memory[this.programCounter++] + this.getFlag(Flag.Carry);
+                // TODO: Check for decimal operations
+                const carryFlag = this.getFlag(CpuFlag.Carry);
+                const result    = this._accumulator + this._addressBus.getByte(this._programCounter++) + carryFlag;
 
                 this.setFlags(result);
-                this.accumulator = result & 0xFF;
+                this._accumulator = result & 0xFF;
             } else if (instruction === 0x6A) { // ROR - Accumulator
             } else if (instruction === 0x6C) { // JMP - Indirect
             } else if (instruction === 0x6D) { // ADC - Absolute
             } else if (instruction === 0x6E) { // ROR - Absolute
             } else if (instruction === 0x70) { // BVS
+                //TODO: It must be relative
+                // if (this.getFlag(Flag.Overflow) === 1) {
+                //     this.programCounter = memory[this.programCounter];
+                // }
             } else if (instruction === 0x71) { // ADC - (Indirect),Y
             } else if (instruction === 0x75) { // ADC - Zero Page,X
             } else if (instruction === 0x76) { // ROR - Zero Page,X
             } else if (instruction === 0x78) { // SEI
-                this.status |= 0b00000100;
+                this._status |= 0b00000100;
             } else if (instruction === 0x79) { // ADC - Absolute,Y
             } else if (instruction === 0x70) { // ADC - Absolute,X
             } else if (instruction === 0x7E) { // ROR - Absolute,X
@@ -155,7 +169,7 @@ export class Cpu {
             } else if (instruction === 0xB5) { // LDA - Zero Page,X
             } else if (instruction === 0xB6) { // LDX - Zero Page,Y
             } else if (instruction === 0xB8) { // CLV
-                this.status &= 0b10111111;
+                this._status &= 0b10111111;
             } else if (instruction === 0xB9) { // LDA - Absolute,Y
             } else if (instruction === 0xBA) { // TSX
             } else if (instruction === 0xBC) { // LDY - Absolute,X
@@ -177,7 +191,7 @@ export class Cpu {
             } else if (instruction === 0xD5) { // CMP - Zero Page,X
             } else if (instruction === 0xD6) { // DEC - Zero Page,X
             } else if (instruction === 0xD8) { // CLD
-                this.status &= 0b11110111;
+                this._status &= 0b11110111;
             } else if (instruction === 0xD9) { // CMP - Absolute,Y
             } else if (instruction === 0xDD) { // CMP - Absolute,X
             } else if (instruction === 0xDE) { // DEC - Absolute,X
@@ -198,7 +212,7 @@ export class Cpu {
             } else if (instruction === 0xF5) { // SBC - Zero Page,X
             } else if (instruction === 0xF6) { // INC - Zero Page,X
             } else if (instruction === 0xF8) { // SED
-                this.status |= 0b00001000;
+                this._status |= 0b00001000;
             } else if (instruction === 0xF9) { // SBC - Absolute,Y
             } else if (instruction === 0xFD) { // SBC - Absolute,X
             } else if (instruction === 0xFE) { // INC - Absolute,X
@@ -206,54 +220,82 @@ export class Cpu {
         }
     }
 
-    public load(data: number[]): void {
-
-        this.ram.write(Ram.PAGE2_START, data);
-        this.programCounter = Ram.PAGE2_START;
-
-        this.decode(data.length);
-    }
-
     public reset(): void {
 
-        this.accumulator    = 0x00;
-        this.programCounter = 0x0000;
-        this.registerX      = 0x00;
-        this.registerY      = 0x00;
-        this.stackPointer   = 0x00;
+        this._accumulator    = 0x00;
+        this._programCounter = 0x0000;
+        this._registerX      = 0x00;
+        this._registerY      = 0x00;
+        this._stackPointer   = 0x00;
 
         //              SVRBDIZC
-        this.status = 0b00100000;
+        this._status = 0b00100000;
+        this._halt   = false;
 
-        this.ram.reset();
+        this.decode();
     }
 
-    private getFlag(flag: Flag): number {
+    // Private Methods -------------------------------------------------------------------------------------------------
 
-        return (this.status >> flag) & 0b00000001;
+    private getFlag(flag: CpuFlag): number {
+
+        return (this._status >> flag) & 0b00000001;
     }
 
     private setFlags(result: number): void {
 
         if (result === 0) {
-            this.status |= 0b00000010; // Set zero flag
+            this._status |= 0b00000010; // Set zero flag
         } else {
 
-            this.status &= 0b11111101; // Clear zero flag
+            this._status &= 0b11111101; // Clear zero flag
 
             if (result > 0xFF) {
-                this.status |= 0b00000001; // Set carry flag
-                this.status |= 0b01000000; // Set overflow flag
+                this._status |= 0b00000001; // Set carry flag
+                this._status |= 0b01000000; // Set overflow flag
             } else {
-                this.status &= 0b11111110; // Clear carry flag
-                this.status &= 0b10111111; // Clear overflow flag
+                this._status &= 0b11111110; // Clear carry flag
+                this._status &= 0b10111111; // Clear overflow flag
             }
 
             if ((result & 0b10000000) >> 7 == 1) { // if > 0x80
-                this.status |= 0b10000000; // Set sign flag
+                this._status |= 0b10000000; // Set sign flag
             } else {
-                this.status &= 0b01111111; // Set sign flag
+                this._status &= 0b01111111; // Set sign flag
             }
         }
+    }
+
+    // Accessors -------------------------------------------------------------------------------------------------------
+
+    get accumulator(): number {
+        return this._accumulator;
+    }
+
+    get registerX(): number {
+        return this._registerX;
+    }
+
+    get registerY(): number {
+        return this._registerY;
+    }
+
+    get stackPointer(): number {
+        return this._stackPointer;
+    }
+
+    get programCounter(): number {
+        return this._programCounter;
+    }
+
+    get status(): number {
+        return this._status;
+    }
+
+    set programCounter(value: number) {
+
+        this._programCounter = value;
+        this._halt           = false;
+        this.decode();
     }
 }
