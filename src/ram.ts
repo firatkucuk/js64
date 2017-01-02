@@ -10,7 +10,9 @@ export class Ram {
     public static PAGE0_START = 0x0000;
     public static PAGE0_END   = 0x00FF;
     public static PAGE1_START = 0x0100;
+    public static STACK_START = 0x0100;
     public static PAGE1_END   = 0x01FF;
+    public static STACK_END   = 0x01FF;
     public static PAGE2_START = 0x0200;
     public static VIDEO_START = 0x0200;
     public static VIDEO_END   = 0x05FF;

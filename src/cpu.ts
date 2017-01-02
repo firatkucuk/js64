@@ -1,4 +1,5 @@
 import {AddressBus} from './adress-bus';
+import {Ram} from './ram';
 
 export enum CpuFlag {
     Carry            = 0,
@@ -60,6 +61,8 @@ export class Cpu {
                 //TODO: flag operation needed.
             } else if (opcode === 0x06) { // ASL - Zero Page
             } else if (opcode === 0x08) { // PHP
+                // PusH Processor status
+                this.pushToStack(this._status);
             } else if (opcode === 0x09) { // ORA - Immediate
             } else if (opcode === 0x0A) { // ASL - Accumulator
             } else if (opcode === 0x0D) { // ORA - Absolute
@@ -255,6 +258,18 @@ export class Cpu {
     private getFlag(flag: CpuFlag): number {
 
         return (this._status >> flag) & 0b00000001;
+    }
+
+    private pushToStack(value): void {
+
+        this._addressBus.setByte(Ram.STACK_START + this._stackPointer, value & 0xFF);
+
+        if (this._stackPointer === 0) {
+            //TODO: Instead of exception emulate stackpointer.
+            throw new Error("Stack Overflowed!");
+        } else {
+            this.stackPointer--;
+        }
     }
 
     private setFlags(result: number): void {
