@@ -8,7 +8,7 @@ export enum CpuFlag {
     DecimalMode      = 3,
     Break            = 4,
     Overflow         = 6,
-    Sign             = 7
+    Negative         = 7
 }
 
 /**
@@ -32,6 +32,372 @@ export class Cpu {
     private _addressBus: AddressBus;
     private _halt: boolean;
 
+    private OPCODE_FUNCTION = {
+
+        0x00: function (): void { // BRK : BReaK                                 | -
+
+            //TODO: Better implementation is needed.
+            this._halt = true;
+        },
+        0x01: function (): void { // ORA : bitwise OR with Accumulator           | Indirect,X
+
+            const zeroPageAddress = (this.consumeByte() + this._registerX) & 0xFF;
+            const address         = this._addressBus.getWord(zeroPageAddress);
+
+            this.accumulator |= this._addressBus.getByte(address);
+
+            this.setNegativeFlag(this.accumulator);
+            this.setZeroFlag(this.accumulator);
+        },
+        0x05: function (): void { // ORA : bitwise OR with Accumulator           | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
+            this.accumulator |= this._addressBus.getByte(zeroPageAddress);
+
+            this.setNegativeFlag(this.accumulator);
+            this.setZeroFlag(this.accumulator);
+        },
+        0x06: function (): void { // ASL : Arithmetic Shift Left                 | Zero Page
+        },
+        0x08: function (): void { // PHP : PusH Processor status                 | -
+
+            this.pushToStack(this._status);
+        },
+        0x09: function (): void { // ORA : bitwise OR with Accumulator           | Immediate
+
+            this._accumulator |= this.pullFromStack();
+
+            this.setNegativeFlag(this.accumulator);
+            this.setZeroFlag(this.accumulator);
+        },
+        0x0A: function (): void { // ASL : Arithmetic Shift Left                 | Accumulator
+        },
+        0x0D: function (): void { // ORA : bitwise OR with Accumulator           | Absolute
+
+            const address = this.pullFromStack();
+
+            this._accumulator |= this._addressBus.getByte(address);
+
+            this.setNegativeFlag(this.accumulator);
+            this.setZeroFlag(this.accumulator);
+        },
+        0x0E: function (): void { // ASL : Arithmetic Shift Left                 | Absolute
+        },
+        0x10: function (): void { // BPL : Branch on PLus                        | -
+        },
+        0x11: function (): void { // ORA : bitwise OR with Accumulator           | Indirect,Y
+        },
+        0x15: function (): void { // ORA : bitwise OR with Accumulator           | Zero Page,X
+        },
+        0x16: function (): void { // ASL : Arithmetic Shift Left                 | Zero Page,X
+        },
+        0x18: function (): void { // CLC : CLear Carry                           | -
+
+            this._status &= 0b11111110;
+        },
+        0x19: function (): void { // ORA : bitwise OR with Accumulator           | Absolute,Y
+        },
+        0x1D: function (): void { // ORA : bitwise OR with Accumulator           | Absolute,X
+        },
+        0x1E: function (): void { // ASL : Arithmetic Shift Left                 | Absolute,X
+        },
+        0x20: function (): void { // JSR : Jump to SubRoutine                    | -
+        },
+        0x21: function (): void { // AND : bitwise AND with accumulator          | Indirect,X
+        },
+        0x24: function (): void { // BIT : test BITs                             | Zero Page
+        },
+        0x25: function (): void { // AND : bitwise AND with accumulator          | Zero Page
+        },
+        0x26: function (): void { // ROL : ROtate Left                           | Zero Page
+        },
+        0x28: function (): void { // PLP : PuLl Processor status                 | -
+        },
+        0x29: function (): void { // AND : bitwise AND with accumulator          | Immediate
+        },
+        0x2A: function (): void { // ROL : ROtate Left                           | Accumulator
+        },
+        0x2C: function (): void { // BIT : test BITs                             | Absolute
+        },
+        0x2D: function (): void { // AND : bitwise AND with accumulator          | Absolute
+        },
+        0x2E: function (): void { // ROL : ROtate Left                           | Absolute
+        },
+        0x30: function (): void { // BMI : Branch on MInus                       | -
+        },
+        0x31: function (): void { // AND : bitwise AND with accumulator          | Indirect,Y
+        },
+        0x35: function (): void { // AND : bitwise AND with accumulator          | Zero Page,X
+        },
+        0x36: function (): void { // ROL : ROtate Left                           | Zero Page,X
+        },
+        0x38: function (): void { // SEC : SEt Carry                             | -
+
+            this._status |= 0b00000001;
+        },
+        0x39: function (): void { // AND : bitwise AND with accumulator          | Absolute,Y
+        },
+        0x3D: function (): void { // AND : bitwise AND with accumulator          | Absolute,X
+        },
+        0x3E: function (): void { // ROL : ROtate Left                           | Absolute,X
+        },
+        0x40: function (): void { // RTI : ReTurn from Interrupt                 | -
+        },
+        0x41: function (): void { // EOR : bitwise Exclusive OR                  | Indirect,X
+        },
+        0x45: function (): void { // EOR : bitwise Exclusive OR                  | Zero Page
+        },
+        0x46: function (): void { // LSR : Logical Shift Right                   | Zero Page
+        },
+        0x48: function (): void { // PHA : PusH Accumulator                      | -
+
+            this.pushToStack(this._accumulator);
+        },
+        0x49: function (): void { // EOR : bitwise Exclusive OR                  | Immediate
+        },
+        0x4A: function (): void { // LSR : Logical Shift Right                   | Accumulator
+        },
+        0x4C: function (): void { // JMP : JuMP                                  | Absolute
+        },
+        0x4D: function (): void { // EOR : bitwise Exclusive OR                  | Absolute
+        },
+        0x4E: function (): void { // LSR : Logical Shift Right                   | Absolute
+        },
+        0x50: function (): void { // BVC : Branch on oVerflow Clear              | -
+        },
+        0x51: function (): void { // EOR : bitwise Exclusive OR                  | Indirect,Y
+        },
+        0x55: function (): void { // EOR : bitwise Exclusive OR                  | Zero Page,X
+        },
+        0x56: function (): void { // LSR : Logical Shift Right                   | Zero Page,X
+        },
+        0x58: function (): void { // CLI : CLear Interrupt                       | -
+
+            this._status &= 0b11111011;
+        },
+        0x59: function (): void { // EOR : bitwise Exclusive OR                  | Absolute,Y
+        },
+        0x5D: function (): void { // EOR : bitwise Exclusive OR                  | Absolute,X
+        },
+        0x5E: function (): void { // LSR : Logical Shift Right                   | Absolute,X
+        },
+        0x60: function (): void { // RTS : ReTurn from Subroutine                | -
+        },
+        0x61: function (): void { // ADC : ADd with Carry                        | Indirect,X
+        },
+        0x65: function (): void { // ADC : ADd with Carry                        | Zero Page
+        },
+        0x66: function (): void { // ROR : ROtate Right                          | Zero Page
+        },
+        0x68: function (): void { // PLA : PuLl Accumulator                      | -
+        },
+        0x69: function (): void { // ADC : ADd with Carry                        | Immediate
+
+            // TODO: Check for decimal operationss
+            const result = this._accumulator + this.consumeByte() + this.getFlag(CpuFlag.Carry);
+
+            this.setFlags(result);
+            this._accumulator = result & 0xFF;
+        },
+        0x6A: function (): void { // ROR : ROtate Right                          | Accumulator
+        },
+        0x6C: function (): void { // JMP : JuMP                                  | Indirect
+        },
+        0x6D: function (): void { // ADC : ADd with Carry                        | Absolute
+        },
+        0x6E: function (): void { // ROR : ROtate Right                          | Absolute
+        },
+        0x70: function (): void { // BVS : Branch on oVerflow Set                | -
+
+            //TODO: It must be relative
+            // if (this.getFlag(Flag.Overflow) === 1) {
+            //     this.programCounter = memory[this.programCounter];
+            // }
+        },
+        0x71: function (): void { // ADC : ADd with Carry                        | Indirect,Y
+        },
+        0x75: function (): void { // ADC : ADd with Carry                        | Zero Page,X
+        },
+        0x76: function (): void { // ROR : ROtate Right                          | Zero Page,X
+        },
+        0x78: function (): void { // SEI : SEt Interrupt                         | -
+
+            this._status |= 0b00000100;
+        },
+        0x79: function (): void { // ADC : ADd with Carry                        | Absolute,Y
+        },
+        0x7D: function (): void { // ADC : ADd with Carry                        | Absolute,X
+        },
+        0x7E: function (): void { // ROR : ROtate Right                          | Absolute,X
+        },
+        0x81: function (): void { // STA : STore Accumulator                     | Indirect,X
+        },
+        0x84: function (): void { // STY : STore Y register                      | Zero Page
+        },
+        0x85: function (): void { // STA : STore Accumulator                     | Zero Page
+        },
+        0x86: function (): void { // STX : STore X register                      | Zero Page
+        },
+        0x88: function (): void { // DEY : DEcrement Y                           | -
+        },
+        0x8A: function (): void { // TXA : Transfer X to A                       | -
+        },
+        0x8C: function (): void { // STY : STore Y register                      | Absolute
+        },
+        0x80: function (): void { // STA : STore Accumulator                     | Absolute
+        },
+        0x8E: function (): void { // STX : STore X register                      | Absolute
+        },
+        0x90: function (): void { // BCC : Branch on Carry Clear                 | -
+        },
+        0x91: function (): void { // STA : STore Accumulator                     | Indirect,Y
+        },
+        0x94: function (): void { // STY : STore Y register                      | Zero Page,X
+        },
+        0x95: function (): void { // STA : STore Accumulator                     | Zero Page,X
+        },
+        0x96: function (): void { // STX : STore X register                      | Zero Page,Y
+        },
+        0x98: function (): void { // TYA : Transfer Y to A                       | -
+        },
+        0x99: function (): void { // STA : STore Accumulator                     | Absolute,Y
+        },
+        0x9A: function (): void { // TXS : Transfer X to Stack ptr               | -
+        },
+        0x9D: function (): void { // STA : STore Accumulator                     | Absolute,X
+        },
+        0xA0: function (): void { // LDY : LoaD Y register                       | Immediate
+        },
+        0xA1: function (): void { // LDA : LoaD Accumulator                      | Indirect,X
+        },
+        0xA2: function (): void { // LDX : LoaD X register                       | Immediate
+        },
+        0xA4: function (): void { // LDY : LoaD Y register                       | Zero Page
+        },
+        0xA5: function (): void { // LDA : LoaD Accumulator                      | Zero Page
+        },
+        0xA6: function (): void { // LDX : LoaD X register                       | Zero Page
+        },
+        0xA8: function (): void { // TAY : Transfer A to Y                       | -
+        },
+        0xA9: function (): void { // LDA : LoaD Accumulator                      | Immediate
+        },
+        0xAA: function (): void { // TAX : Transfer A to X                       | -
+        },
+        0xAC: function (): void { // LDY : LoaD Y register                       | Absolute
+        },
+        0xAD: function (): void { // LDA : LoaD Accumulator                      | Absolute
+        },
+        0xAE: function (): void { // LDX : LoaD X register                       | Absolute
+        },
+        0xB0: function (): void { // BCS : Branch on Carry Set                   | -
+        },
+        0xB1: function (): void { // LDA : LoaD Accumulator                      | Indirect,Y
+        },
+        0xB4: function (): void { // LDY : LoaD Y register                       | Zero Page,X
+        },
+        0xB5: function (): void { // LDA : LoaD Accumulator                      | Zero Page,X
+        },
+        0xB6: function (): void { // LDX : LoaD X register                       | Zero Page,Y
+        },
+        0xB8: function (): void { // CLV : CLear oVerflow                        | -
+
+            this._status &= 0b10111111;
+        },
+        0xB9: function (): void { // LDA : LoaD Accumulator                      | Absolute,Y
+        },
+        0xBA: function (): void { // TSX : Transfer Stack ptr to X               | -
+        },
+        0xBC: function (): void { // LDY : LoaD Y register                       | Absolute,X
+        },
+        0xBD: function (): void { // LDA : LoaD Accumulator                      | Absolute,X
+        },
+        0xBE: function (): void { // LDX : LoaD X register                       | Absolute,Y
+        },
+        0xC0: function (): void { // CPY : ComPare Y register                    | Immediate
+        },
+        0xC1: function (): void { // CMP : CoMPare accumulator                   | Indirect,X
+        },
+        0xC4: function (): void { // CPY : ComPare Y register                    | Zero Page
+        },
+        0xC5: function (): void { // CMP : CoMPare accumulator                   | Zero Page
+        },
+        0xC6: function (): void { // DEC : DECrement memory                      | Zero Page
+        },
+        0xC8: function (): void { // INY : INcrement Y                           | -
+        },
+        0xC9: function (): void { // CMP : CoMPare accumulator                   | Immediate
+        },
+        0xCA: function (): void { // DEX : DEcrement X                           | -
+        },
+        0xCC: function (): void { // CPY : ComPare Y register                    | Absolute
+        },
+        0xCD: function (): void { // CMP : CoMPare accumulator                   | Absolute
+        },
+        0xCE: function (): void { // DEC : DECrement memory                      | Absolute
+        },
+        0xD0: function (): void { // BNE : Branch on Not Equal                   | -
+        },
+        0xD1: function (): void { // CMP : CoMPare accumulator                   | Indirect,Y
+        },
+        0xD5: function (): void { // CMP : CoMPare accumulator                   | Zero Page,X
+        },
+        0xD6: function (): void { // DEC : DECrement memory                      | Zero Page,X
+        },
+        0xD8: function (): void { // CLD : CLear Decimal                         | -
+
+            this._status &= 0b11110111;
+        },
+        0xD9: function (): void { // CMP : CoMPare accumulator                   | Absolute,Y
+        },
+        0xDD: function (): void { // CMP : CoMPare accumulator                   | Absolute,X
+        },
+        0xDE: function (): void { // DEC : DECrement memory                      | Absolute,X
+        },
+        0xE0: function (): void { // CPX : ComPare X register                    | Immediate
+        },
+        0xE1: function (): void { // SBC : SuBtract with Carry                   | Indirect,X
+        },
+        0xE4: function (): void { // CPX : ComPare X register                    | Zero Page
+        },
+        0xE5: function (): void { // SBC : SuBtract with Carry                   | Zero Page
+        },
+        0xE6: function (): void { // INC : INCrement memory                      | Zero Page
+        },
+        0xE8: function (): void { // INX : INcrement X                           | -
+        },
+        0xE9: function (): void { // SBC : SuBtract with Carry                   | Immediate
+        },
+        0xEA: function (): void { // NOP : No OPeration                          | -
+
+            // Pass
+        },
+        0xEC: function (): void { // CPX : ComPare X register                    | Absolute
+        },
+        0xED: function (): void { // SBC : SuBtract with Carry                   | Absolute
+        },
+        0xEE: function (): void { // INC : INCrement memory                      | Absolute
+        },
+        0xF0: function (): void { // BEQ : Branch on EQual                       | -
+        },
+        0xF1: function (): void { // SBC : SuBtract with Carry                   | Indirect,Y
+        },
+        0xF5: function (): void { // SBC : SuBtract with Carry                   | Zero Page,X
+        },
+        0xF6: function (): void { // INC : INCrement memory                      | Zero Page,X
+        },
+        0xF8: function (): void { // SED : SEt Decimal                           | -
+
+            this._status |= 0b00001000;
+        },
+        0xF9: function (): void { // SBC : SuBtract with Carry                   | Absolute,Y
+        },
+        0xFD: function (): void { // SBC : SuBtract with Carry                   | Absolute,X
+        },
+        0xFE: function (): void { // INC : INCrement memory                      | Absolute,X
+        }
+    };
+
     // Constructors ----------------------------------------------------------------------------------------------------
 
     public constructor(addressBus: AddressBus) {
@@ -45,188 +411,7 @@ export class Cpu {
 
         while (!this._halt) {
 
-            const opcode = this.consumeByte();
-
-            if (opcode === 0x00) { // BRK
-                // BReaK
-                //TODO: Better implementation is needed.
-                this._halt = true;
-            } else if (opcode === 0x01) { // ORA - (Indirect,X)
-                // bitwise OR with Accumulator
-            } else if (opcode === 0x05) { // ORA - Zero Page
-                // bitwise OR with Accumulator
-
-                const zeroPageAddress = this.consumeByte();
-                this.accumulator |= this._addressBus.getByte(zeroPageAddress);
-                //TODO: flag operation needed.
-            } else if (opcode === 0x06) { // ASL - Zero Page
-            } else if (opcode === 0x08) { // PHP
-                // PusH Processor status
-                this.pushToStack(this._status);
-            } else if (opcode === 0x09) { // ORA - Immediate
-            } else if (opcode === 0x0A) { // ASL - Accumulator
-            } else if (opcode === 0x0D) { // ORA - Absolute
-            } else if (opcode === 0x0E) { // ASL - Absolute
-            } else if (opcode === 0x10) { // BPL
-            } else if (opcode === 0x11) { // ORA - (Indirect),Y
-            } else if (opcode === 0x15) { // ORA - Zero Page,X
-            } else if (opcode === 0x16) { // ASL - Zero Page,X
-            } else if (opcode === 0x18) { // CLC
-                this._status &= 0b11111110;
-            } else if (opcode === 0x19) { // ORA - Absolute,Y
-            } else if (opcode === 0x1D) { // ORA - Absolute,X
-            } else if (opcode === 0x1E) { // ASL - Absolute,X
-            } else if (opcode === 0x20) { // JSR
-            } else if (opcode === 0x21) { // AND - (Indirect,X)
-            } else if (opcode === 0x24) { // BIT - Zero Page
-            } else if (opcode === 0x25) { // AND - Zero Page
-            } else if (opcode === 0x26) { // ROL - Zero Page
-            } else if (opcode === 0x28) { // PLP
-            } else if (opcode === 0x29) { // AND - Immediate
-            } else if (opcode === 0x2A) { // ROL - Accumulator
-            } else if (opcode === 0x2C) { // BIT - Absolute
-            } else if (opcode === 0x2D) { // AND - Absolute
-            } else if (opcode === 0x2E) { // ROL - Absolute
-            } else if (opcode === 0x30) { // BMI
-            } else if (opcode === 0x31) { // AND - (Indirect),Y
-            } else if (opcode === 0x35) { // AND - Zero Page,X
-            } else if (opcode === 0x36) { // ROL - Zero Page,X
-            } else if (opcode === 0x38) { // SEC
-                this._status |= 0b00000001;
-            } else if (opcode === 0x39) { // AND - Absolute,Y
-            } else if (opcode === 0x3D) { // AND - Absolute,X
-            } else if (opcode === 0x3E) { // ROL - Absolute,X
-            } else if (opcode === 0x40) { // RTI
-            } else if (opcode === 0x41) { // EOR - (Indirect,X)
-            } else if (opcode === 0x45) { // EOR - Zero Page
-            } else if (opcode === 0x46) { // LSR - Zero Page
-            } else if (opcode === 0x48) { // PHA
-            } else if (opcode === 0x49) { // EOR - Immediate
-            } else if (opcode === 0x4A) { // LSR - Accumulator
-            } else if (opcode === 0x4C) { // JMP - Absolute
-            } else if (opcode === 0x4D) { // EOR - Absolute
-            } else if (opcode === 0x4E) { // LSR - Absolute
-            } else if (opcode === 0x50) { // BVC
-            } else if (opcode === 0x51) { // EOR - (Indirect),Y
-            } else if (opcode === 0x55) { // EOR - Zero Page,X
-            } else if (opcode === 0x56) { // LSR - Zero Page,X
-            } else if (opcode === 0x58) { // CLI
-                this._status &= 0b11111011;
-            } else if (opcode === 0x59) { // EOR - Absolute,Y
-            } else if (opcode === 0x50) { // EOR - Absolute,X
-            } else if (opcode === 0x5E) { // LSR - Absolute,X
-            } else if (opcode === 0x60) { // RTS
-            } else if (opcode === 0x61) { // ADC - (Indirect,X)
-            } else if (opcode === 0x65) { // ADC - Zero Page
-            } else if (opcode === 0x66) { // ROR - Zero Page
-            } else if (opcode === 0x68) { // PLA
-            } else if (opcode === 0x69) { // ADC - Immediate
-                // TODO: Check for decimal operationss
-                const result = this._accumulator + this.consumeByte() + this.getFlag(CpuFlag.Carry);
-
-                this.setFlags(result);
-                this._accumulator = result & 0xFF;
-            } else if (opcode === 0x6A) { // ROR - Accumulator
-            } else if (opcode === 0x6C) { // JMP - Indirect
-            } else if (opcode === 0x6D) { // ADC - Absolute
-            } else if (opcode === 0x6E) { // ROR - Absolute
-            } else if (opcode === 0x70) { // BVS
-                //TODO: It must be relative
-                // if (this.getFlag(Flag.Overflow) === 1) {
-                //     this.programCounter = memory[this.programCounter];
-                // }
-            } else if (opcode === 0x71) { // ADC - (Indirect),Y
-            } else if (opcode === 0x75) { // ADC - Zero Page,X
-            } else if (opcode === 0x76) { // ROR - Zero Page,X
-            } else if (opcode === 0x78) { // SEI
-                this._status |= 0b00000100;
-            } else if (opcode === 0x79) { // ADC - Absolute,Y
-            } else if (opcode === 0x70) { // ADC - Absolute,X
-            } else if (opcode === 0x7E) { // ROR - Absolute,X
-            } else if (opcode === 0x81) { // STA - (Indirect,X)
-            } else if (opcode === 0x84) { // STY - Zero Page
-            } else if (opcode === 0x85) { // STA - Zero Page
-            } else if (opcode === 0x86) { // STX - Zero Page
-            } else if (opcode === 0x88) { // DEY
-            } else if (opcode === 0x8A) { // TXA
-            } else if (opcode === 0x8C) { // STY - Absolute
-            } else if (opcode === 0x80) { // STA - Absolute
-            } else if (opcode === 0x8E) { // STX - Absolute
-            } else if (opcode === 0x90) { // BCC
-            } else if (opcode === 0x91) { // STA - (Indirect),Y
-            } else if (opcode === 0x94) { // STY - Zero Page,X
-            } else if (opcode === 0x95) { // STA - Zero Page,X
-            } else if (opcode === 0x96) { // STX - Zero Page,Y
-            } else if (opcode === 0x98) { // TYA
-            } else if (opcode === 0x99) { // STA - Absolute,Y
-            } else if (opcode === 0x9A) { // TXS
-            } else if (opcode === 0x90) { // STA - Absolute,X
-            } else if (opcode === 0xA0) { // LDY - Immediate
-            } else if (opcode === 0xA1) { // LDA - (Indirect,X)
-            } else if (opcode === 0xA2) { // LDX - Immediate
-            } else if (opcode === 0xA4) { // LDY - Zero Page
-            } else if (opcode === 0xA5) { // LDA - Zero Page
-            } else if (opcode === 0xA6) { // LDX - Zero Page
-            } else if (opcode === 0xA8) { // TAY
-            } else if (opcode === 0xA9) { // LDA - Immediate
-            } else if (opcode === 0xAA) { // TAX
-            } else if (opcode === 0xAC) { // LDY - Absolute
-            } else if (opcode === 0xAD) { // LDA - Absolute
-            } else if (opcode === 0xAE) { // LDX - Absolute
-            } else if (opcode === 0xB0) { // BCS
-            } else if (opcode === 0xB1) { // LDA - (Indirect),Y
-            } else if (opcode === 0xB4) { // LDY - Zero Page,X
-            } else if (opcode === 0xB5) { // LDA - Zero Page,X
-            } else if (opcode === 0xB6) { // LDX - Zero Page,Y
-            } else if (opcode === 0xB8) { // CLV
-                this._status &= 0b10111111;
-            } else if (opcode === 0xB9) { // LDA - Absolute,Y
-            } else if (opcode === 0xBA) { // TSX
-            } else if (opcode === 0xBC) { // LDY - Absolute,X
-            } else if (opcode === 0xBD) { // LDA - Absolute,X
-            } else if (opcode === 0xBE) { // LDX - Absolute,Y
-            } else if (opcode === 0xC0) { // Cpy - Immediate
-            } else if (opcode === 0xC1) { // CMP - (Indirect,X)
-            } else if (opcode === 0xC4) { // CPY - Zero Page
-            } else if (opcode === 0xC5) { // CMP - Zero Page
-            } else if (opcode === 0xC6) { // DEC - Zero Page
-            } else if (opcode === 0xC8) { // INY
-            } else if (opcode === 0xC9) { // CMP - Immediate
-            } else if (opcode === 0xCA) { // DEX
-            } else if (opcode === 0xCC) { // CPY - Absolute
-            } else if (opcode === 0xCD) { // CMP - Absolute
-            } else if (opcode === 0xCE) { // DEC - Absolute
-            } else if (opcode === 0xD0) { // BNE
-            } else if (opcode === 0xD1) { // CMP   (Indirect@,Y
-            } else if (opcode === 0xD5) { // CMP - Zero Page,X
-            } else if (opcode === 0xD6) { // DEC - Zero Page,X
-            } else if (opcode === 0xD8) { // CLD
-                this._status &= 0b11110111;
-            } else if (opcode === 0xD9) { // CMP - Absolute,Y
-            } else if (opcode === 0xDD) { // CMP - Absolute,X
-            } else if (opcode === 0xDE) { // DEC - Absolute,X
-            } else if (opcode === 0xE0) { // CPX - Immediate
-            } else if (opcode === 0xE1) { // SBC - (Indirect,X)
-            } else if (opcode === 0xE4) { // CPX - Zero Page
-            } else if (opcode === 0xE5) { // SBC - Zero Page
-            } else if (opcode === 0xE6) { // INC - Zero Page
-            } else if (opcode === 0xE8) { // INX
-            } else if (opcode === 0xE9) { // SBC - Immediate
-            } else if (opcode === 0xEA) { // NOP
-                // Pass
-            } else if (opcode === 0xEC) { // CPX - Absolute
-            } else if (opcode === 0xED) { // SBC - Absolute
-            } else if (opcode === 0xEE) { // INC - Absolute
-            } else if (opcode === 0xF0) { // BEQ
-            } else if (opcode === 0xF1) { // SBC - (Indirect),Y
-            } else if (opcode === 0xF5) { // SBC - Zero Page,X
-            } else if (opcode === 0xF6) { // INC - Zero Page,X
-            } else if (opcode === 0xF8) { // SED
-                this._status |= 0b00001000;
-            } else if (opcode === 0xF9) { // SBC - Absolute,Y
-            } else if (opcode === 0xFD) { // SBC - Absolute,X
-            } else if (opcode === 0xFE) { // INC - Absolute,X
-            }
+            this.OPCODE_FUNCTION[this.consumeByte()]();
         }
     }
 
@@ -238,7 +423,7 @@ export class Cpu {
         this._registerY      = 0x00;
         this._stackPointer   = 0xff;
 
-        //              SVRBDIZC
+        //               NVRBDIZC
         this._status = 0b00100000;
         this._halt   = false;
 
@@ -252,12 +437,24 @@ export class Cpu {
      * @returns {number}
      */
     private consumeByte(): number {
+
         return this._addressBus.getByte(this._programCounter++)
     }
 
     private getFlag(flag: CpuFlag): number {
 
         return (this._status >> flag) & 0b00000001;
+    }
+
+    private pullFromStack(): number {
+
+        const value = this._addressBus.getByte(Ram.STACK_START + this._stackPointer);
+
+        if (this._stackPointer !== 0xFF) {
+            this.stackPointer++;
+        }
+
+        return value;
     }
 
     private pushToStack(value): void {
@@ -272,27 +469,21 @@ export class Cpu {
         }
     }
 
-    private setFlags(result: number): void {
+    private setNegativeFlag(result: number): void {
+
+        if ((result & 0b1000000) !== 0) {
+            this._status |= 0b10000000; // Set negative flag
+        } else {
+            this._status &= 0b01111111; // Clear negative flag
+        }
+    }
+
+    private setZeroFlag(result: number): void {
 
         if (result === 0) {
             this._status |= 0b00000010; // Set zero flag
         } else {
-
             this._status &= 0b11111101; // Clear zero flag
-
-            if (result > 0xFF) {
-                this._status |= 0b00000001; // Set carry flag
-                this._status |= 0b01000000; // Set overflow flag
-            } else {
-                this._status &= 0b11111110; // Clear carry flag
-                this._status &= 0b10111111; // Clear overflow flag
-            }
-
-            if ((result & 0b10000000) >> 7 == 1) { // if > 0x80
-                this._status |= 0b10000000; // Set sign flag
-            } else {
-                this._status &= 0b01111111; // Set sign flag
-            }
         }
     }
 
