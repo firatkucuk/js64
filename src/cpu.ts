@@ -36,28 +36,42 @@ export class Cpu {
 
         0x00: function (): void { // BRK : BReaK                                 | -
 
-            //TODO: Better implementation is needed.
+            // TODO: Better implementation is needed.
             this._halt = true;
         },
         0x01: function (): void { // ORA : bitwise OR with Accumulator           | Indirect,X
 
-            const zeroPageAddress = (this.consumeByte() + this._registerX) & 0xFF;
-            const address         = this._addressBus.getWord(zeroPageAddress);
+            const zeroPageAddress  = this.consumeByte(); // Address is 0x00XX
+            const zeroPageXAddress = (zeroPageAddress + this._registerX) & 0xFF;
+            const indirectXAddress = this._addressBus.getWord(zeroPageXAddress);
 
-            this.accumulator |= this._addressBus.getByte(address);
+            this.accumulator |= this._addressBus.getByte(indirectXAddress);
 
-            this.setNegativeFlag(this.accumulator);
-            this.setZeroFlag(this.accumulator);
+            this.updateNegativeFlag(this.accumulator);
+            this.updateZeroFlag(this.accumulator);
         },
         0x05: function (): void { // ORA : bitwise OR with Accumulator           | Zero Page
 
-            const zeroPageAddress = this.consumeByte();
+            const zeroPageAddress = this.consumeByte(); // Address is 0x00XX
+
             this.accumulator |= this._addressBus.getByte(zeroPageAddress);
 
-            this.setNegativeFlag(this.accumulator);
-            this.setZeroFlag(this.accumulator);
+            this.updateNegativeFlag(this.accumulator);
+            this.updateZeroFlag(this.accumulator);
         },
         0x06: function (): void { // ASL : Arithmetic Shift Left                 | Zero Page
+
+            const zeroPageAddress = this.consumeByte(); // Address is 0x00XX
+            const referencedValue = this._addressBus.getByte(zeroPageAddress);
+
+            this.updateCarryFlag(referencedValue);
+
+            const shiftedValue = (referencedValue << 1) & 0xFF;
+
+            this._addressBus.setByte(zeroPageAddress, shiftedValue);
+
+            this.updateNegativeFlag(shiftedValue);
+            this.updateZeroFlag(shiftedValue);
         },
         0x08: function (): void { // PHP : PusH Processor status                 | -
 
@@ -65,12 +79,19 @@ export class Cpu {
         },
         0x09: function (): void { // ORA : bitwise OR with Accumulator           | Immediate
 
-            this._accumulator |= this.pullFromStack();
+            this._accumulator |= this.consumeByte(); // Immediate value
 
-            this.setNegativeFlag(this.accumulator);
-            this.setZeroFlag(this.accumulator);
+            this.updateNegativeFlag(this.accumulator);
+            this.updateZeroFlag(this.accumulator);
         },
         0x0A: function (): void { // ASL : Arithmetic Shift Left                 | Accumulator
+
+            this.updateCarryFlag(this._accumulator);
+
+            this._accumulator = (this._accumulator << 1) & 0xFF;
+
+            this.updateNegativeFlag(this._accumulator);
+            this.updateZeroFlag(this._accumulator);
         },
         0x0D: function (): void { // ORA : bitwise OR with Accumulator           | Absolute
 
@@ -78,12 +99,28 @@ export class Cpu {
 
             this._accumulator |= this._addressBus.getByte(address);
 
-            this.setNegativeFlag(this.accumulator);
-            this.setZeroFlag(this.accumulator);
+            this.updateNegativeFlag(this.accumulator);
+            this.updateZeroFlag(this.accumulator);
         },
         0x0E: function (): void { // ASL : Arithmetic Shift Left                 | Absolute
+
+            const absouluteAddress = this.consumeWord();
+            const referencedValue  = this._addressBus.getByte(absouluteAddress);
+
+            this.updateCarryFlag(referencedValue);
+
+            const shiftedValue = (referencedValue << 1) & 0xFF;
+
+            this._addressBus.setByte(absouluteAddress, shiftedValue);
+
+            this.updateNegativeFlag(shiftedValue);
+            this.updateZeroFlag(shiftedValue);
         },
         0x10: function (): void { // BPL : Branch on PLus                        | -
+
+            if (this.getFlag(CpuFlag.Negative) !== 1) {
+
+            }
         },
         0x11: function (): void { // ORA : bitwise OR with Accumulator           | Indirect,Y
         },
@@ -93,7 +130,7 @@ export class Cpu {
         },
         0x18: function (): void { // CLC : CLear Carry                           | -
 
-            this._status &= 0b11111110;
+            this.clearFlag(CpuFlag.Carry);
         },
         0x19: function (): void { // ORA : bitwise OR with Accumulator           | Absolute,Y
         },
@@ -106,10 +143,16 @@ export class Cpu {
         0x21: function (): void { // AND : bitwise AND with accumulator          | Indirect,X
         },
         0x24: function (): void { // BIT : test BITs                             | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x25: function (): void { // AND : bitwise AND with accumulator          | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x26: function (): void { // ROL : ROtate Left                           | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x28: function (): void { // PLP : PuLl Processor status                 | -
         },
@@ -146,8 +189,12 @@ export class Cpu {
         0x41: function (): void { // EOR : bitwise Exclusive OR                  | Indirect,X
         },
         0x45: function (): void { // EOR : bitwise Exclusive OR                  | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x46: function (): void { // LSR : Logical Shift Right                   | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x48: function (): void { // PHA : PusH Accumulator                      | -
 
@@ -186,8 +233,12 @@ export class Cpu {
         0x61: function (): void { // ADC : ADd with Carry                        | Indirect,X
         },
         0x65: function (): void { // ADC : ADd with Carry                        | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x66: function (): void { // ROR : ROtate Right                          | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x68: function (): void { // PLA : PuLl Accumulator                      | -
         },
@@ -233,10 +284,16 @@ export class Cpu {
         0x81: function (): void { // STA : STore Accumulator                     | Indirect,X
         },
         0x84: function (): void { // STY : STore Y register                      | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x85: function (): void { // STA : STore Accumulator                     | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x86: function (): void { // STX : STore X register                      | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0x88: function (): void { // DEY : DEcrement Y                           | -
         },
@@ -273,10 +330,16 @@ export class Cpu {
         0xA2: function (): void { // LDX : LoaD X register                       | Immediate
         },
         0xA4: function (): void { // LDY : LoaD Y register                       | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xA5: function (): void { // LDA : LoaD Accumulator                      | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xA6: function (): void { // LDX : LoaD X register                       | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xA8: function (): void { // TAY : Transfer A to Y                       | -
         },
@@ -319,10 +382,16 @@ export class Cpu {
         0xC1: function (): void { // CMP : CoMPare accumulator                   | Indirect,X
         },
         0xC4: function (): void { // CPY : ComPare Y register                    | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xC5: function (): void { // CMP : CoMPare accumulator                   | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xC6: function (): void { // DEC : DECrement memory                      | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xC8: function (): void { // INY : INcrement Y                           | -
         },
@@ -359,10 +428,16 @@ export class Cpu {
         0xE1: function (): void { // SBC : SuBtract with Carry                   | Indirect,X
         },
         0xE4: function (): void { // CPX : ComPare X register                    | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xE5: function (): void { // SBC : SuBtract with Carry                   | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xE6: function (): void { // INC : INCrement memory                      | Zero Page
+
+            const zeroPageAddress = this.consumeByte();
         },
         0xE8: function (): void { // INX : INcrement X                           | -
         },
@@ -432,13 +507,31 @@ export class Cpu {
 
     // Private Methods -------------------------------------------------------------------------------------------------
 
+    private clearFlag(flag: CpuFlag): void {
+
+        this._status &= 0b11111111 ^ (0b00000001 << flag);
+    }
+
     /**
      * Gets byte from memory that program counter shows. Beside this it increments program for reading next byte
      * @returns {number}
      */
     private consumeByte(): number {
 
-        return this._addressBus.getByte(this._programCounter++)
+        return this._addressBus.getByte(this._programCounter++);
+    }
+
+    /**
+     * Gets word from memory that program counter shows. Beside this it increments program
+     * @returns {number}
+     */
+    private consumeWord(): number {
+
+        const word = this._addressBus.getWord(this._programCounter);
+
+        this._programCounter += 2;
+
+        return word;
     }
 
     private getFlag(flag: CpuFlag): number {
@@ -446,12 +539,17 @@ export class Cpu {
         return (this._status >> flag) & 0b00000001;
     }
 
+    private isFlagSet(flag: CpuFlag, value: number): boolean {
+
+        return ((value >> flag) & 0b00000001) === 1;
+    }
+
     private pullFromStack(): number {
 
         const value = this._addressBus.getByte(Ram.STACK_START + this._stackPointer);
 
         if (this._stackPointer !== 0xFF) {
-            this.stackPointer++;
+            this._stackPointer++;
         }
 
         return value;
@@ -462,28 +560,42 @@ export class Cpu {
         this._addressBus.setByte(Ram.STACK_START + this._stackPointer, value & 0xFF);
 
         if (this._stackPointer === 0) {
-            //TODO: Instead of exception emulate stackpointer.
+            // TODO: Instead of exception emulate stackpointer.
             throw new Error("Stack Overflowed!");
         } else {
-            this.stackPointer--;
+            this._stackPointer--;
         }
     }
 
-    private setNegativeFlag(result: number): void {
+    private setFlag(flag: CpuFlag): void {
 
-        if ((result & 0b1000000) !== 0) {
-            this._status |= 0b10000000; // Set negative flag
+        this._status |= (0b00000001 << flag);
+    }
+
+    private updateCarryFlag(value: number): void {
+
+        if (this.isFlagSet(CpuFlag.Carry, value)) {
+            this.setFlag(CpuFlag.Carry);
         } else {
-            this._status &= 0b01111111; // Clear negative flag
+            this.clearFlag(CpuFlag.Carry);
         }
     }
 
-    private setZeroFlag(result: number): void {
+    private updateNegativeFlag(value: number): void {
 
-        if (result === 0) {
-            this._status |= 0b00000010; // Set zero flag
+        if (this.isFlagSet(CpuFlag.Negative, value)) {
+            this.setFlag(CpuFlag.Negative);
         } else {
-            this._status &= 0b11111101; // Clear zero flag
+            this.clearFlag(CpuFlag.Negative);
+        }
+    }
+
+    private updateZeroFlag(value: number): void {
+
+        if (value === 0) {
+            this.setFlag(CpuFlag.Zero);
+        } else {
+            this.clearFlag(CpuFlag.Zero);
         }
     }
 
