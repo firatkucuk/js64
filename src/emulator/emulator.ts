@@ -14,7 +14,13 @@ export class Emulator {
 
     // Constructors ----------------------------------------------------------------------------------------------------
 
-    public constructor() {
+    public constructor(container: HTMLDivElement) {
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 320;
+        canvas.height = 200;
+
+        container.appendChild(canvas);
 
         this._addressBus = new AddressBus();
 
@@ -33,13 +39,17 @@ export class Emulator {
 
     // Public Methods --------------------------------------------------------------------------------------------------
 
-    /**
-     * This method is temporary. Direct code execution must not be allowed
-     * @param data
-     */
-    execute(data: number[]) {
+    // /**
+    //  * This method is temporary. Direct code execution must not be allowed
+    //  * @param data
+    //  */
+    // execute(data: number[]) {
+    //
+    //     this._ram.store(Ram.PAGE2_START, data);
+    //     this._cpu.programCounter = Ram.PAGE2_START;
+    // }
 
-        this._ram.store(Ram.PAGE2_START, data);
-        this._cpu.programCounter = Ram.PAGE2_START;
+    public start(): void {
+        console.log('started 5!');
     }
 }

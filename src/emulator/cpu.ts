@@ -502,7 +502,7 @@ export class Cpu {
         this._status = 0b00100000;
         this._halt   = false;
 
-        this.decode();
+        //this.decode();
     }
 
     // Private Methods -------------------------------------------------------------------------------------------------
